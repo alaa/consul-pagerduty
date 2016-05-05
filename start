@@ -3,4 +3,4 @@
 docker run -it \
            -e CONSUL_ADDR=<ADDR:PORT> \
            -e PAGERDUTY_SERVICE_KEY=<TOKEN> \
-           notify
+           consul-pagerduty

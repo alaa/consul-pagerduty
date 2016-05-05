@@ -1,7 +1,7 @@
-# Consul-Pagerdutry
+# Consul-Pagerduty
 
 consul-pagerduty is a simple service that watches the health check's status on Consul
-and notifies pager duty upon failiure.
+and notifies pagerduty upon failure.
 
 ## Usage
 ```
@@ -13,7 +13,7 @@ docker run -d \
 
 ## Running consul-pagerduty on Marathon
 
-The dockerized consul-pagerduty memory footprint is arount 8.0 mb only.
+The dockerized consul-pagerduty memory footprint is arount 8.0 mb.
 
 ```
 [{
@@ -39,5 +39,4 @@ The dockerized consul-pagerduty memory footprint is arount 8.0 mb only.
 
 - Split code into packges
 - Write some tests
-- Implement distributed locking to provide HA for multiple instances without
-producing duplicated alerts.
+- Implement distributed locking to provide HA for multiple instances
