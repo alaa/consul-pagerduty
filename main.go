@@ -75,19 +75,43 @@ func failingChecks(servicesChecks servicesChecks) consulHealthChecks {
 	return failingChecks
 }
 
+type notified map[*consulapi.HealthCheck]time.Time
+
+var notifiedChecks = make(notified)
+
+func isNotified(check *consulapi.HealthCheck) bool {
+	now := time.Now()
+	notifiedAt, ok := notifiedChecks[check]
+	if !ok {
+		notifiedChecks[check] = now
+		return false
+	}
+
+	timediff := now.Sub(notifiedAt).Seconds()
+	if timediff > 3600 {
+		notifiedChecks[check] = now
+		return false
+	}
+
+	return true
+}
+
 func notify(failingChecks consulHealthChecks) {
 	for _, check := range failingChecks {
-		incidentKey, err := pager.Trigger(fmt.Sprintf("%s => %s", check.ServiceName, check.Output))
-		if err != nil {
-			log.Print(err)
+		if !isNotified(check) {
+			incidentKey, err := pager.Trigger(fmt.Sprintf("%s => %s", check.ServiceName, check.Output))
+			if err != nil {
+				log.Print(err)
+			}
+			log.Println("New incident has been submitted to pagerduty", incidentKey)
 		}
-		log.Println("New incident has been submitted to pagerduty", incidentKey)
 	}
 }
 
 func main() {
 	consulAddr := os.Getenv("CONSUL_ADDR")
 	if consulAddr == "" {
+		log.Print("CONSUL_ADDR is not set, using localhost:8500")
 		consulAddr = "localhost:8500"
 	}
 
@@ -103,9 +127,7 @@ func main() {
 	for {
 		select {
 		case <-ticker:
-			log.Print("TICKING...")
 			notify(failingChecks(c.servicesChecks(c.services())))
 		}
 	}
-
 }
