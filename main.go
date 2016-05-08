@@ -16,8 +16,6 @@ type Consul struct {
 	health  *consulapi.Health
 }
 
-type Services map[string][]string
-
 func New(consulAddr string) *Consul {
 	config := &consulapi.Config{
 		Address: consulAddr,
@@ -36,6 +34,8 @@ func New(consulAddr string) *Consul {
 	}
 }
 
+type Services map[string][]string
+
 func (c *Consul) services() Services {
 	services, _, err := c.catalog.Services(nil)
 	if err != nil {
@@ -45,10 +45,9 @@ func (c *Consul) services() Services {
 	return services
 }
 
-type servicesChecks [][]*consulapi.HealthCheck
+type serviceChecks []*consulapi.HealthCheck
 
-func (c *Consul) servicesChecks(services Services) servicesChecks {
-	var servicesChecks servicesChecks
+func (c *Consul) servicesChecks(services Services) (servicesChecks []serviceChecks) {
 	for id, _ := range c.services() {
 		checks, _, err := c.health.Checks(id, &consulapi.QueryOptions{})
 		if err != nil {
@@ -60,11 +59,7 @@ func (c *Consul) servicesChecks(services Services) servicesChecks {
 	return servicesChecks
 }
 
-type consulHealthChecks []*consulapi.HealthCheck
-
-func failingChecks(servicesChecks servicesChecks) consulHealthChecks {
-	var failingChecks consulHealthChecks
-
+func failingChecks(servicesChecks []serviceChecks) (failingChecks serviceChecks) {
 	for _, serviceChecks := range servicesChecks {
 		for _, check := range serviceChecks {
 			if check.Status != "passing" {
@@ -96,7 +91,7 @@ func isNotified(check *consulapi.HealthCheck) bool {
 	return true
 }
 
-func notify(failingChecks consulHealthChecks) {
+func notify(failingChecks serviceChecks) {
 	for _, check := range failingChecks {
 		if !isNotified(check) {
 			incidentKey, err := pager.Trigger(fmt.Sprintf("%s => %s", check.ServiceName, check.Output))
