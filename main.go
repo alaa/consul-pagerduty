@@ -70,21 +70,37 @@ func failingChecks(servicesChecks []serviceChecks) (failingChecks serviceChecks)
 	return failingChecks
 }
 
-type notified map[*consulapi.HealthCheck]time.Time
+type notified map[*consulapi.HealthCheck]record
+
+type record struct {
+	timestamp time.Time
+	count     int
+}
 
 var notifiedChecks = make(notified)
 
 func isNotified(check *consulapi.HealthCheck) bool {
 	now := time.Now()
-	notifiedAt, ok := notifiedChecks[check]
+	record, ok := notifiedChecks[check]
+
+	// Ignore the first failing check, as it might be a deployment cycle.
 	if !ok {
-		notifiedChecks[check] = now
-		return false
+		record.timestamp = now
+		record.count = 0
+		return true
 	}
 
-	timediff := now.Sub(notifiedAt).Seconds()
-	if timediff > 3600 {
-		notifiedChecks[check] = now
+	timediff := now.Sub(record.timestamp).Seconds()
+
+	switch {
+	// Notify if the check is failing for more than 30 seconds.
+	case timediff >= 30 && record.count == 0:
+		return false
+
+	// notify again if the alert was failing for one hour without human acknowledgement.
+	case timediff > 3600:
+		record.timestamp = now
+		record.count += 1
 		return false
 	}
 
@@ -118,7 +134,7 @@ func main() {
 	pager.ServiceKey = pagerdutyServiceKey
 	c := New(consulAddr)
 
-	ticker := time.Tick(time.Second * 5)
+	ticker := time.Tick(time.Second * 15)
 	for {
 		select {
 		case <-ticker:

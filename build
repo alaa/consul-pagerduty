@@ -1,3 +1,4 @@
 #!/bin/bash
 
-docker build --no-cache -t consul-pagerduty .
+REG="alaa"
+docker build --no-cache -t $REG/consul-pagerduty .
