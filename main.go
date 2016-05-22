@@ -74,33 +74,25 @@ type notified map[*consulapi.HealthCheck]record
 
 type record struct {
 	timestamp time.Time
-	count     int
+	sent      bool
 }
 
 var notifiedChecks = make(notified)
 
-func isNotified(check *consulapi.HealthCheck) bool {
+func isNotified(check *consulapi.HealthCheck, cycleInterval float64) bool {
 	now := time.Now()
 	record, ok := notifiedChecks[check]
-
-	// Ignore the first failing check, as it might be a deployment cycle.
 	if !ok {
 		record.timestamp = now
-		record.count = 0
+		record.sent = false
+		notifiedChecks[check] = record
 		return true
 	}
 
 	timediff := now.Sub(record.timestamp).Seconds()
-
-	switch {
-	// Notify if the check is failing for more than 30 seconds.
-	case timediff >= 30 && record.count == 0:
-		return false
-
-	// notify again if the alert was failing for one hour without human acknowledgement.
-	case timediff > 3600:
-		record.timestamp = now
-		record.count += 1
+	if timediff >= cycleInterval && record.sent == false {
+		record.sent = true
+		notifiedChecks[check] = record
 		return false
 	}
 
@@ -109,7 +101,7 @@ func isNotified(check *consulapi.HealthCheck) bool {
 
 func notify(failingChecks serviceChecks) {
 	for _, check := range failingChecks {
-		if !isNotified(check) {
+		if !isNotified(check, 30) {
 			incidentKey, err := pager.Trigger(fmt.Sprintf("%s => %s", check.ServiceName, check.Output))
 			if err != nil {
 				log.Print(err)
@@ -134,7 +126,7 @@ func main() {
 	pager.ServiceKey = pagerdutyServiceKey
 	c := New(consulAddr)
 
-	ticker := time.Tick(time.Second * 15)
+	ticker := time.Tick(time.Second * 5)
 	for {
 		select {
 		case <-ticker:
